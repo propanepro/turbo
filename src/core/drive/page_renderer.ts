@@ -88,10 +88,13 @@ export class PageRenderer extends Renderer<HTMLBodyElement, PageSnapshot> {
   }
 
   assignNewBody() {
-    if (document.body && this.newElement instanceof HTMLBodyElement) {
-      document.body.replaceWith(this.newElement)
+    const targetBody = document.querySelector('[data-turbo-drive-target]') || document.body
+    const newBody = this.newElement.querySelector('[data-turbo-drive-target]') || this.newElement
+
+    if (targetBody && newBody) {
+      targetBody.replaceWith(newBody)
     } else {
-      document.documentElement.appendChild(this.newElement)
+      document.documentElement.appendChild(newBody)
     }
   }
 
