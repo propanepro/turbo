@@ -105,6 +105,7 @@ export class FrameController implements AppearanceObserverDelegate, FetchRequest
         const { body } = parseHTMLDocument(html)
         const snapshot = new Snapshot(await this.extractForeignFrameElement(body))
         const renderer = new FrameRenderer(this.view.snapshot, snapshot, false)
+        if (this.view.renderPromise) await this.view.renderPromise
         await this.view.render(renderer)
       }
     } catch (error) {
@@ -122,7 +123,11 @@ export class FrameController implements AppearanceObserverDelegate, FetchRequest
   // Link interceptor delegate
 
   shouldInterceptLinkClick(element: Element, url: string) {
-    return this.shouldInterceptNavigation(element)
+    if (element.hasAttribute("data-turbo-method")) {
+      return false
+    } else {
+      return this.shouldInterceptNavigation(element)
+    }
   }
 
   linkClickIntercepted(element: Element, url: string) {
@@ -210,8 +215,8 @@ export class FrameController implements AppearanceObserverDelegate, FetchRequest
 
   // View delegate
 
-  viewWillRenderSnapshot(snapshot: Snapshot, isPreview: boolean) {
-
+  allowsImmediateRender(snapshot: Snapshot, resume: (value: any) => void) {
+    return true
   }
 
   viewRenderedSnapshot(snapshot: Snapshot, isPreview: boolean) {

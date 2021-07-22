@@ -133,8 +133,24 @@ export class Session implements FormSubmitObserverDelegate, HistoryDelegate, Lin
 
   followedLinkToLocation(link: Element, location: URL) {
     const action = this.getActionForLink(link)
-    this.visit(location.href, { action })
+    this.convertLinkWithMethodClickToFormSubmission(link) || this.visit(location.href, { action })
   }
+
+  convertLinkWithMethodClickToFormSubmission(link: Element) {
+    const linkMethod = link.getAttribute("data-turbo-method")
+
+    if (linkMethod) {
+      const form = document.createElement("form")
+      form.method = linkMethod
+      form.action = link.getAttribute("href") || "undefined"
+
+      link.parentNode?.insertBefore(form, link)
+      return dispatch("submit", { cancelable: true, target: form })
+    } else {
+      return false
+    }
+  }
+
 
   // Navigator delegate
 
@@ -149,11 +165,19 @@ export class Session implements FormSubmitObserverDelegate, HistoryDelegate, Lin
 
   visitStarted(visit: Visit) {
     extendURLWithDeprecatedProperties(visit.location)
-    this.notifyApplicationAfterVisitingLocation(visit.location)
+    this.notifyApplicationAfterVisitingLocation(visit.location, visit.action)
   }
 
   visitCompleted(visit: Visit) {
     this.notifyApplicationAfterPageLoad(visit.getTimingMetrics())
+  }
+
+  locationWithActionIsSamePage(location: URL, action: Action): boolean {
+    return this.navigator.locationWithActionIsSamePage(location, action)
+  }
+
+  visitScrolledToSamePageLocation(oldURL: URL, newURL: URL) {
+    this.notifyApplicationAfterVisitingSamePageLocation(oldURL, newURL)
   }
 
   // Form submit observer delegate
@@ -193,8 +217,9 @@ export class Session implements FormSubmitObserverDelegate, HistoryDelegate, Lin
     this.notifyApplicationBeforeCachingSnapshot()
   }
 
-  viewWillRenderSnapshot({ element }: PageSnapshot, isPreview: boolean) {
-    this.notifyApplicationBeforeRender(element)
+  allowsImmediateRender({ element }: PageSnapshot, resume: (value: any) => void) {
+    const event = this.notifyApplicationBeforeRender(element, resume)
+    return !event.defaultPrevented
   }
 
   viewRenderedSnapshot(snapshot: PageSnapshot, isPreview: boolean) {
@@ -226,16 +251,16 @@ export class Session implements FormSubmitObserverDelegate, HistoryDelegate, Lin
     return dispatch("turbo:before-visit", { detail: { url: location.href }, cancelable: true })
   }
 
-  notifyApplicationAfterVisitingLocation(location: URL) {
-    return dispatch("turbo:visit", { detail: { url: location.href } })
+  notifyApplicationAfterVisitingLocation(location: URL, action: Action) {
+    return dispatch("turbo:visit", { detail: { url: location.href, action } })
   }
 
   notifyApplicationBeforeCachingSnapshot() {
     return dispatch("turbo:before-cache")
   }
 
-  notifyApplicationBeforeRender(newBody: HTMLBodyElement) {
-    return dispatch("turbo:before-render", { detail: { newBody }})
+  notifyApplicationBeforeRender(newBody: HTMLBodyElement, resume: (value: any) => void) {
+    return dispatch("turbo:before-render", { detail: { newBody, resume }, cancelable: true })
   }
 
   notifyApplicationAfterRender() {
@@ -244,6 +269,10 @@ export class Session implements FormSubmitObserverDelegate, HistoryDelegate, Lin
 
   notifyApplicationAfterPageLoad(timing: TimingData = {}) {
     return dispatch("turbo:load", { detail: { url: this.location.href, timing }})
+  }
+
+  notifyApplicationAfterVisitingSamePageLocation(oldURL: URL, newURL: URL) {
+    dispatchEvent(new HashChangeEvent("hashchange", { oldURL: oldURL.toString(), newURL: newURL.toString() }))
   }
 
   // Private

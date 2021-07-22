@@ -5,7 +5,7 @@ declare const Turbo: any
 
 export class VisitTests extends TurboDriveTestCase {
   async setup() {
-    this.goToLocation("/src/tests/fixtures/visit.html")
+    await this.goToLocation("/src/tests/fixtures/visit.html")
   }
 
   async "test programmatically visiting a same-origin location"() {
@@ -69,6 +69,14 @@ export class VisitTests extends TurboDriveTestCase {
     this.cancelNextVisit()
     await this.goBack()
     this.assert(await this.changedBody)
+  }
+
+  async "test turbo:before-fetch-request event.detail"() {
+    await this.clickSelector("#same-origin-link")
+    const { url, fetchOptions } = await this.nextEventNamed("turbo:before-fetch-request")
+
+    this.assert.equal(fetchOptions.method, "GET")
+    this.assert.include(url, "/src/tests/fixtures/one.html")
   }
 
   async visitLocation(location: string) {
